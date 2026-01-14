@@ -14,6 +14,7 @@ authors: [Ali Ismail-Fawaz](https://hadifawaz1999.github.io/) and [Germain Fores
 """
 
 import numpy as np
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
@@ -24,7 +25,7 @@ from sklearn.model_selection import train_test_split
 
 """## Reading the data"""
 
-df = pd.read_csv("pokemon-stats-data.csv")
+df = pd.read_csv(os.path.join(os.path.dirname(__file__), "pokemon-stats-data.csv"))
 
 df = df.dropna()
 df.head()
@@ -141,5 +142,41 @@ plt.close()
 
 ## How can we improve the precision (reduce error) on test set ?
 """
+def linear_model_with_bias(x, w, b):
+  ypred = w * x + b
+  return ypred
 
-# your code here
+def train_linear_model_with_bias(xtrain, ytrain, xtest, ytest):
+  # Define the the list of possible values of w ranging from -2.0 to 8.0
+  w_s = np.arange(start=-2.0, stop=8.0, step=0.1)
+  b_s = np.arange(start=-50.0, stop=50.0, step=1.0)
+
+  best_error = float("inf")
+  best_w = None
+  best_b = None
+
+  # Go through all values in w_s and b_s and calculate the error
+  for w in w_s:
+    for b in b_s:
+      ypred = linear_model_with_bias(xtrain, w, b)
+      error = error_function(ytrain, ypred)
+      if error < best_error:
+        best_error = error
+        best_w = w
+        best_b = b
+
+  # Evaluate on test set
+  ypred_test = linear_model_with_bias(xtest, best_w, best_b)
+  test_error = error_function(ytest, ypred_test)
+
+  return best_w, best_b, best_error, test_error
+
+best_w, best_b, train_error, test_error = train_linear_model_with_bias(xtrain, ytrain, xtest, ytest)
+print("For w = "+str(best_w)+" and b = "+str(best_b)+", the error on all training examples is = "+str(train_error))
+print("For w = "+str(best_w)+" and b = "+str(best_b)+", the error on all testing examples is = "+str(test_error))
+
+plt.figure()
+plt.scatter(ytest, linear_model_with_bias(xtest, best_w, best_b))
+plt.xlabel("Ground truth ytest")
+plt.ylabel("Predictions ypred")
+plt.show()
