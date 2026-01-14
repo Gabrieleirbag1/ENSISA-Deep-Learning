@@ -147,7 +147,6 @@ def linear_model_with_bias(x, w, b):
   return ypred
 
 def train_linear_model_with_bias(xtrain, ytrain, xtest, ytest):
-  # Define the the list of possible values of w ranging from -2.0 to 8.0
   w_s = np.arange(start=-2.0, stop=8.0, step=0.1)
   b_s = np.arange(start=-50.0, stop=50.0, step=1.0)
 
@@ -155,7 +154,6 @@ def train_linear_model_with_bias(xtrain, ytrain, xtest, ytest):
   best_w = None
   best_b = None
 
-  # Go through all values in w_s and b_s and calculate the error
   for w in w_s:
     for b in b_s:
       ypred = linear_model_with_bias(xtrain, w, b)
@@ -165,7 +163,6 @@ def train_linear_model_with_bias(xtrain, ytrain, xtest, ytest):
         best_w = w
         best_b = b
 
-  # Evaluate on test set
   ypred_test = linear_model_with_bias(xtest, best_w, best_b)
   test_error = error_function(ytest, ypred_test)
 
