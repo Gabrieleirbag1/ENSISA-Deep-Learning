@@ -185,11 +185,23 @@ for angle in range(59, 180, 30):
 
 ## Evaluate on the test set
 """
-
+loss_test = model.evaluate(xtest, ytest, verbose=False)
+print("The error on the test set is = "+str(loss_test))
 
 
 """## Plot the predicted defense values with respect to the true values of the test set"""
-
+ypred_test = model.predict(xtest)
+min_ypred, min_ytest = np.min(ypred_test), np.min(ytest)
+max_ypred, max_ytest = np.max(ypred_test), np.max(ytest)
+plt.figure()
+plt.scatter(ytest, ypred_test, alpha=0.7)
+plt.plot([min_ytest, max_ytest], [min_ytest, max_ytest], color='red', linestyle='--', lw=2)
+plt.xlim(min(min_ypred, min_ytest), max(max_ypred, max_ytest))
+plt.ylim(min(min_ypred, min_ytest), max(max_ypred, max_ytest))
+plt.xlabel("Ground truth ytest")
+plt.ylabel("Predictions ypred")
+plt.show()
+plt.close()
 
 
 """## Train a model while taking 2 attributes (weight and speed) and a non-linear relationship between these 2 attributes"""
