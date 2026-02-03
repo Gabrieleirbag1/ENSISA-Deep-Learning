@@ -13,6 +13,7 @@ authors: [Ali Ismail-Fawaz](https://hadifawaz1999.github.io/) and [Germain Fores
 Import packages used
 """
 
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -29,7 +30,7 @@ import tensorflow as tf
 
 """## Reading the data"""
 
-df = pd.read_csv("pokemon-stats-data.csv")
+df = pd.read_csv(os.path.join(os.path.dirname(__file__), "pokemon-stats-data.csv"))
 
 df = df.dropna()
 df.head()
