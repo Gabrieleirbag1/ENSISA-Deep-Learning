@@ -205,8 +205,50 @@ plt.close()
 
 
 """## Train a model while taking 2 attributes (weight and speed) and a non-linear relationship between these 2 attributes"""
+X_nonlinear = np.asarray(df[["weight_kg","speed"]], dtype=np.float32)
+Y_nonlinear = np.asarray(df["sp_defense"], dtype=np.float32)
 
+xtrain_nonlinear, xtest_nonlinear, ytrain_nonlinear, ytest_nonlinear = train_test_split(X_nonlinear, Y_nonlinear, test_size=33/100, random_state=42)
 
+xtrain_nonlinear = MinMaxScaler().fit_transform(xtrain_nonlinear)
+xtest_nonlinear = MinMaxScaler().fit_transform(xtest_nonlinear)
 
+input_shape_nonlinear = xtrain_nonlinear.shape[1:]
+
+input_layer_nonlinear = tf.keras.layers.Input(input_shape_nonlinear)
+hidden_layer_nonlinear = tf.keras.layers.Dense(units=10, activation="relu")(input_layer_nonlinear) # Non-linear hidden layer
+output_layer_nonlinear = tf.keras.layers.Dense(units=1, activation="linear")(hidden_layer_nonlinear)
+
+model_nonlinear = tf.keras.models.Model(inputs=input_layer_nonlinear, outputs=output_layer_nonlinear)
+
+model_nonlinear.summary()
+
+learning_rate_nonlinear = 0.1
+optimizer_algo_nonlinear = tf.keras.optimizers.SGD(learning_rate=learning_rate_nonlinear)
+cost_function_nonlinear = tf.keras.losses.mse
+
+model_nonlinear.compile(loss=cost_function_nonlinear, optimizer=optimizer_algo_nonlinear)
+
+mini_batch_size_nonlinear = 64
+nb_epochs_nonlinear = 500
+
+tf.random.set_seed(42)
+
+history_nonlinear = model_nonlinear.fit(xtrain_nonlinear,
+                                        ytrain_nonlinear,
+                                        batch_size=mini_batch_size_nonlinear,
+                                        epochs=nb_epochs_nonlinear,
+                                        verbose=0,)
 """## Plot the predicted values with respect to the real values of the test set"""
-
+ypred_test_nonlinear = model_nonlinear.predict(xtest_nonlinear)
+min_ypred_nonlinear, min_ytest_nonlinear = np.min(ypred_test_nonlinear), np.min(ytest_nonlinear)
+max_ypred_nonlinear, max_ytest_nonlinear = np.max(ypred_test_nonlinear), np.max(ytest_nonlinear)
+plt.figure()
+plt.scatter(ytest_nonlinear, ypred_test_nonlinear, alpha=0.7)
+plt.plot([min_ytest_nonlinear, max_ytest_nonlinear], [min_ytest_nonlinear, max_ytest_nonlinear], color='red', linestyle='--', lw=2)
+plt.xlim(min(min_ypred_nonlinear, min_ytest_nonlinear), max(max_ypred_nonlinear, max_ytest_nonlinear))
+plt.ylim(min(min_ypred_nonlinear, min_ytest_nonlinear), max(max_ypred_nonlinear, max_ytest_nonlinear))
+plt.xlabel("Ground truth ytest")
+plt.ylabel("Predictions ypred")
+plt.show()
+plt.close()
