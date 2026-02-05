@@ -162,6 +162,9 @@ ytest_one_hot = tf.keras.utils.to_categorical(ytest, num_classes=3)
 
 """## Train the model"""
 
+model.compile(loss="categorical_crossentropy",
+              optimizer=tf.keras.optimizers.SGD(learning_rate=0.001),
+              metrics=["accuracy"])
 tf.random.set_seed(42)
 history = model.fit(xtrain, ytrain_one_hot, batch_size=12, epochs=1000, verbose=0, validation_data=(xtest, ytest_one_hot))
 
