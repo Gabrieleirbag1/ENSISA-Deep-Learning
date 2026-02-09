@@ -206,16 +206,20 @@ print("L'accuracy sur l'ensemble du test est:",acc)
 
 #### Essayez d'améliorer le modèle en ajoutant une couche caché de 16 neurones et comparez les résultats:
 """
+input_layer = tf.keras.layers.Input(shape=(x_train.shape[1],))
+hidden_layer = tf.keras.layers.Dense(units=16,activation='relu')(input_layer)
+hidden_layer = tf.keras.layers.Dense(units=16,activation='relu')(hidden_layer)
+output_layer = tf.keras.layers.Dense(units=10, activation='softmax')(hidden_layer)
 
-# Votre code ici
+model_mlp = tf.keras.models.Model(inputs=input_layer, outputs=output_layer)
+model_mlp.summary()
 
 """#### Essayez d'enlever les fonctions d'activation dans les couches cachées (activation='linear') et comparez les résultats"""
-
-# Votre code ici
+input_layer = tf.keras.layers.Input(shape=(x_train.shape[1],))
+hidden_layer = tf.keras.layers.Dense(units=16,activation='linear')(input_layer)
+output_layer = tf.keras.layers.Dense(units=10, activation='softmax')(hidden_layer)
 
 """## Régression
-
-### Jeu de données synthétique
 
 Nous allons créer un jeu de données synthétique représentant la fonction non linéaire à estimer par le MLP.
 """
@@ -282,5 +286,7 @@ plt.plot(x_data, y_predicted, 'g', linewidth=1)
 
 #### Ajoutez une deuxième couche cachée de 64 neurones et comparez les prédictions
 """
-
-#votre code ici
+input_layer = tf.keras.layers.Input(shape=(x_data.shape[1],))
+hidden_layer = tf.keras.layers.Dense(units=64,activation='relu')(input_layer)
+hidden_layer = tf.keras.layers.Dense(units=64,activation='relu')(hidden_layer)
+output_layer = tf.keras.layers.Dense(units=1, activation='linear')(hidden_layer)
