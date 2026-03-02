@@ -283,5 +283,19 @@ plt.plot(x_data, y_predicted, 'g', linewidth=1)
 
 #### Ajoutez une deuxième couche cachée de 64 neurones et comparez les prédictions
 """
-
-#votre code ici
+#let's start
+input_layer = tf.keras.layers.Input(shape=(x_data.shape[1],))
+hidden_layer_1 = tf.keras.layers.Dense(units=64,activation='relu')(input_layer)
+hidden_layer_2 = tf.keras.layers.Dense(units=64,activation='relu')(hidden_layer_1)
+output_layer = tf.keras.layers.Dense(units=1, activation='linear')(hidden_layer_2)
+multi_layer_model_regression = tf.keras.models.Model(inputs=input_layer, outputs=output_layer)
+multi_layer_model_regression.summary()
+multi_layer_model_regression.compile(optimizer=tf.keras.optimizers.Adam(0.01), loss='mse')
+history = multi_layer_model_regression.fit(x_data,y_data,epochs=nb_epochs,verbose=True)
+loss = multi_layer_model_regression.evaluate(x_data,y_data,verbose=False)
+print("Le taux d'erreur sur l'ensemble du test est:",loss)
+y_predicted = multi_layer_model_regression.predict(x_data)
+plt.scatter(x_data[::1], y_data[::1], color='orange')
+plt.plot(x_data, y_predicted, 'g', linewidth=1)
+plt.show()
+plt.close()
