@@ -1,0 +1,257 @@
+#!/bin/bash
+
+WithDockerEngine=0
+missings=""
+restart=0
+
+notInstalled () {
+   app="$1"
+   if whereis "${app}" | grep '/usr/bin' >/dev/null; then
+      echo "$app is available"
+      return 1
+   else
+      echo "$app is not available"
+      return 0
+   fi
+}
+
+installUnzip() {
+   if notInstalled "unzip"; then 
+      sudo apt install unzip
+   fi
+   if unzip -v >/dev/null 2>&1; then
+      echo "well done unzip is installed"
+   else
+      echo "Sad news unzip is not installed"
+      missings="$missings unzip"
+   fi
+}
+
+installCurl() {
+   if notInstalled "curl"; then 
+      sudo apt install curl
+   fi
+   if curl -V >/dev/null 2>&1; then
+      echo "well done curl is installed"
+   else
+      echo "Sad news curl is not installed"
+      missings="$missings curl"
+   fi
+}
+
+installJavac() {
+   if notInstalled "javac"; then 
+      sudo apt install openjdk-21-jdk-headless
+   fi
+   if javac --version >/dev/null 2>&1; then
+      echo "well done javac is installed"
+   else
+      echo "Sad news javac is not installed"
+      missings="$missings javac"
+   fi
+}
+
+installMaven() {
+   if notInstalled "mvn"; then 
+      sudo apt install maven
+   fi
+   if mvn --version >/dev/null 2>&1; then
+      echo "well done maven is installed"
+   else
+      echo "Sad news maven is not installed"
+      missings="$missings maven"
+   fi
+}
+
+installDeprecatedDocker() {
+   if notInstalled "docker"; then 
+      sudo apt install docker.io
+   fi
+   if docker --version >/dev/null 2>&1; then
+      if docker pull hello-world; then
+         echo "well done docker is installed"
+      else
+         if grep -s -q "docker" /etc/group; then
+            sudo usermod -aG docker "$USER"
+         else
+            sudo groupadd docker
+            sudo usermod -aG docker "$USER"
+         fi
+         restart=1
+      fi
+   else
+      echo "Sad news docker is not installed"
+      missings="$missings docker"
+   fi
+}
+
+uninstallDeprecatedDocker () {
+   echo "Deprecated docker package will be uninstalled"
+   oldPackages="docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc"
+   for pkg in $oldPackages; do
+      sudo apt remove $pkg;
+   done
+}
+
+installDockerCertificates () {
+# Add Docker's official GPG key:
+   sudo apt-get update
+   sudo apt-get install ca-certificates curl
+   sudo install -m 0755 -d /etc/apt/keyrings
+   sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+   sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+   echo \
+     "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+     $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+        sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+   sudo apt-get update
+}
+
+installDockerEngine() {
+   newPackages="docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
+   sudo apt install $newPackages
+}
+
+installActualDocker() {
+   if notInstalled "docker"; then 
+      installDockerCertificates
+      installDockerEngine
+   fi
+   if docker version | grep -s -q "Docker Engine"; then
+      # nothing to do a docker engine is installed
+      :
+   else
+      uninstallDeprecatedDocker
+      installDockerCertificates
+      installDockerEngine
+   fi
+   if docker --version >/dev/null 2>&1; then
+      if docker pull hello-world; then
+         echo "well done docker is installed"
+      else
+         if grep -s -q "docker" /etc/group; then
+            sudo usermod -aG docker "$USER"
+         else
+            sudo groupadd docker
+            sudo usermod -aG docker "$USER"
+         fi
+         restart=1
+      fi
+   else
+      echo "Sad news docker is not installed"
+      missings="$missings docker"
+   fi
+}
+
+installDockerCompose() {
+   if notInstalled "docker-compose"; then
+      sudo curl -SL https://github.com/docker/compose/releases/download/v2.29.2/docker-compose-linux-x86_64 -o /usr/bin/docker-compose
+      sudo chmod +x /usr/bin/docker-compose
+   fi
+   if docker-compose -v >/dev/null 2>&1; then
+      echo "well done docker-compose is installed"
+   else
+      echo "Sad news docker-compose is not installed"
+      missings="$missings docker-compose"
+   fi
+}
+
+installAll () {
+   missings=""
+   restart=0
+   installUnzip
+   installCurl
+   installJavac
+   installMaven
+   if notInstalled "docker"; then 
+      # do nothing WithDockerEngine use the CLI value
+      :
+   else
+      if docker version | grep -s -q "Docker Engine"; then
+         # override WithDockerEngine as it is installed
+         WithDockerEngine=2
+      else
+         # do nothing WithDockerEngine use the CLI value
+         :
+      fi
+   fi
+   case "$WithDockerEngine" in
+   0)
+      # do nothing about docker, should not happen
+      ;;
+   1)
+      echo "I will try to use (install) a deprecated docker"
+      echo "cp7 never works it requires Docker Engine"
+      installDeprecatedDocker
+      installDockerCompose
+      ;;
+   2)
+      installActualDocker
+      ;;
+   esac
+   if [ ! -z "$missings" ]; then
+      echo "stop, some required apps are still missing : $missings"
+      exit 1
+   fi
+   if [ "$restart" != "0" ]; then
+      echo "An app made changes which request a full restart of the OS"
+      exit 1
+   fi
+
+}
+
+dockerProvisionning () {
+   docker pull tensorflow/tensorflow:2.8.0
+   docker pull openjdk:21
+   if [ "$WithDockerEngine" == "2" ]; then
+      docker pull maven:3.9.9-eclipse-temurin-21-alpine
+   fi
+}
+
+mavenProvisionning () {
+   unzip dry.zip
+   ( cd dry; mvn package)
+   if [ -f dry/target/dry-0.0.1-SNAPSHOT.jar ]; then
+      echo "fine the target file can be maven packaged"
+   else
+      echo "Sorry but the maven target is not created"
+      exit 1
+   fi
+   rm -r dry 
+}
+
+process () {
+   echo "if a tool is not available I will try a sudo apt install "
+   installAll
+   dockerProvisionning
+   mavenProvisionning
+
+#   clear
+   echo "Well done may be now we can work"
+}
+
+help () {
+   echo "preload -e/-d/-h"
+   echo "   -h : this help"
+   echo "   -d : use an old intalled (or not) deprecated docker, cp7 never works"
+   echo "   -e : force installation of docker engine, if a previous 'old' docker is installed, try to remove it"
+   exit 1
+}
+
+while [ "$#" != "0" ]; do
+   case "$1" in
+   -h) help;;  
+   -d) WithDockerEngine=1;;
+   -e) WithDockerEngine=2;;
+   esac
+   shift
+done
+
+if [ "$WithDockerEngine" == "0" ]; then
+   help
+fi
+
+process
+

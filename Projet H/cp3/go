@@ -1,0 +1,5 @@
+#!/bin/bash
+docker stop ia; docker rm ia
+( cd ia; docker build --rm -t ia . )
+docker run --name ia ia &
+

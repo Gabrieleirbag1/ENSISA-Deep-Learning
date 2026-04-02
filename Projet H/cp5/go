@@ -1,0 +1,8 @@
+#!/bin/bash
+docker stop ia; docker rm ia
+( cd ia; docker build --rm -t ia . )
+docker stop nn; docker rm nn
+( cd nn; mvn clean package -DskipTests; docker build --rm -t nn . )
+docker run -p 8080:8080 --name nn nn &
+docker run -p 8081:80  -v `cd ..; pwd`/models:/app/models --name ia ia &
+
