@@ -13,17 +13,7 @@ from tensorflow.keras import layers
 from tensorflow.keras import Model
 from tensorflow.keras.utils import to_categorical
 
-
-def _find_file(data_dir: str, candidates: list[str]) -> str:
-    for c in candidates:
-        p = os.path.join(data_dir, c)
-        if os.path.exists(p):
-            return p
-    raise FileNotFoundError(f"Aucun fichier trouvé dans {data_dir} parmi: {candidates}")
-
-
 def _load_matrix(path: str) -> np.ndarray:
-    # UCR ECG200 est généralement en espace/tabulation
     for delim in [None, "\t", " "]:
         try:
             data = np.loadtxt(path, delimiter=delim)
@@ -46,7 +36,6 @@ def load_ecg200(data_dir: str):
     y_test_raw = test[:, 0]
     X_test = test[:, 1:].astype(np.float32)
 
-    # ECG200: labels souvent {-1, +1}. On mappe vers {0, 1}
     uniq = sorted(np.unique(np.concatenate([y_train_raw, y_test_raw])).tolist())
     label_map = {lab: i for i, lab in enumerate(uniq)}
     y_train = np.array([label_map[v] for v in y_train_raw], dtype=np.int32)
