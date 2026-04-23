@@ -278,7 +278,7 @@ def train_and_evaluate_model(
     return result
 
 
-def build_model_configs(input_length: int, n_classes: int):
+def build_model_configs():
     return [
         {
             "name": "MLP",
@@ -304,7 +304,7 @@ def build_model_configs(input_length: int, n_classes: int):
 def run_all_models(dataset: dict, epochs: int, batch_size: int, out_dir: str):
     input_length = dataset["input_length"]
     n_classes = dataset["n_classes"]
-    model_configs = build_model_configs(input_length, n_classes)
+    model_configs = build_model_configs()
 
     results = []
     for config in model_configs:
