@@ -21,7 +21,7 @@ def _load_matrix(path: str) -> np.ndarray:
                 return data
         except Exception:
             pass
-    raise ValueError(f"Impossible de lire correctement {path}")
+    raise ValueError(f"Impossible to load {path}")
 
 
 def load_ecg200(data_dir: str):
@@ -173,7 +173,7 @@ def summarize_and_plot_comparison(results_df: pd.DataFrame, out_dir: str):
     plt.xticks(x, results_df["model"].values)
     plt.ylim(0, 1.05)
     plt.ylabel("Score")
-    plt.title("Comparaison des performances")
+    plt.title("Comparison of Metrics")
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(fig_dir, "comparison_metrics.png"), dpi=150)
@@ -182,20 +182,20 @@ def summarize_and_plot_comparison(results_df: pd.DataFrame, out_dir: str):
     plt.figure(figsize=(15, 4))
     plt.subplot(1, 3, 1)
     plt.bar(results_df["model"], results_df["model_size_mb_est"], color="tab:purple")
-    plt.ylabel("Taille estimée (MB)")
-    plt.title("Taille des modèles")
+    plt.ylabel("Estimated Size (MB)")
+    plt.title("Model Sizes")
     plt.xticks(rotation=15)
 
     plt.subplot(1, 3, 2)
     plt.bar(results_df["model"], results_df["train_time_s"], color="tab:orange")
-    plt.ylabel("Temps d'entraînement (s)")
-    plt.title("Complexité temporelle")
+    plt.ylabel("Training Time (s)")
+    plt.title("Temporal Complexity")
     plt.xticks(rotation=15)
 
     plt.subplot(1, 3, 3)
     plt.bar(results_df["model"], results_df["infer_time_s"], color="tab:green")
-    plt.ylabel("Temps d'inférence (s)")
-    plt.title("Temps d'inférence")
+    plt.ylabel("Inference Time (s)")
+    plt.title("Inference Time")
     plt.xticks(rotation=15)
 
     plt.tight_layout()
@@ -356,7 +356,7 @@ def main():
 
     summarize_and_plot_comparison(results, args.data_dir)
 
-    print("\n===== COMPARAISON FINALE =====")
+    print("\n################## FINAL COMPARISON ##################")
     print(results)
 
     results.to_csv(os.path.join(args.data_dir, "ecg200_model_comparison.csv"), index=False)
