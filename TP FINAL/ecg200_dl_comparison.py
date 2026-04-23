@@ -122,7 +122,7 @@ def plot_history(history, model_name: str, fig_dir: str):
     plt.plot(history.history["val_loss"], label="val_loss")
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
-    plt.title(f"{model_name} - Courbe de perte")
+    plt.title(f"{model_name} - Loss Curve")
     plt.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(fig_dir, f"{model_name}_history.png"))
@@ -131,13 +131,13 @@ def plot_history(history, model_name: str, fig_dir: str):
 def plot_confusion_matrix_figure(cm: np.ndarray, model_name: str, fig_dir: str):
     plt.figure(figsize=(5, 4))
     plt.imshow(cm, interpolation="nearest", cmap="Blues")
-    plt.title(f"{model_name} - Matrice de confusion")
+    plt.title(f"{model_name} - Confusion Matrix")
     plt.colorbar()
     tick_marks = np.arange(cm.shape[0])
     plt.xticks(tick_marks, [f"Classe {i}" for i in range(cm.shape[0])])
     plt.yticks(tick_marks, [f"Classe {i}" for i in range(cm.shape[0])])
-    plt.ylabel("Vrai label")
-    plt.xlabel("Prédiction")
+    plt.ylabel("Real label")
+    plt.xlabel("Prediction")
     plt.tight_layout()
 
     threshold = cm.max() / 2.0 if cm.max() > 0 else 0
