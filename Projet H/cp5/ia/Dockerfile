@@ -1,7 +1,3 @@
-FROM tensorflow/tensorflow:2.8.0
-WORKDIR /app
-COPY ./requirements.txt /app/requirements.txt
-RUN pip install -r requirements.txt
-COPY . /app
-CMD ["python", "main.py"]
-
+FROM eclipse-temurin:21-jre
+COPY ./target/nn-0.0.1-SNAPSHOT.jar nn.jar
+CMD ["java", "-jar", "/nn.jar"]

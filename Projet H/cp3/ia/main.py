@@ -23,28 +23,8 @@ def doConfiguration():
    print ("configuring")
    classify.config("efficientnetv2-m");
    print ("done")
+   return { "status" : "ok", "data": "condiguration is done" }
    
-@app.route ('/validate', methods=['POST'])
-def doValidation():
-   print ("validating")
-   picture_name = "picture.jpg"
-   result = classify.classify(picture_name);
-   print (result)
-   print ("done")
-  
-@app.route ('/check', methods=['POST'])
-def doValidation():
-   print ("validating")
-   filename = "picture.jpg"
-   if 'id' in request.args:
-      index = int(request.args['id'])
-      if index >= 0 and index < len(validation_image_map):
-         filename = validation_image_map[index]
-   result = classify.classify(filename);
-   print (result)
-   print ("done")
-   return { "status" : "ok", "data": result, "filename": filename }
-  
 def allowed_file(filename):
    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -67,6 +47,19 @@ def doClassification():
    print ("done")
    return { "status" : "ok", "data": result, "filename": filename }
 
+@app.route ('/validate', methods=['POST'])
+def doValidation():
+   print ("validating")
+   picture_name = "picture.jpg"
+   if 'id' in request.args:
+      index = int(request.args['id'])
+      if index >= 0 and index < len(validation_image_map):
+         picture_name = validation_image_map[index]
+   result = classify.classify(picture_name);
+   print (result)
+   print ("done")
+   return { "status" : "ok", "data": result }
+  
 @app.route ('/', methods=['GET'])
 def doHome():
    return '''
