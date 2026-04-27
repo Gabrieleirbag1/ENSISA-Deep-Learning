@@ -1,0 +1,21 @@
+services:
+  ia:
+    build: ./ia
+    image: ia
+    container_name: ia
+    networks:
+      - nn
+    volumes:
+      - ./nn/models:/app/models
+  nn:
+    build: ./nn
+    image: nn
+    container_name: nn
+    networks:
+      - nn
+    ports:
+      - "8080:8080"
+networks:
+   nn:
+      driver: bridge
+
