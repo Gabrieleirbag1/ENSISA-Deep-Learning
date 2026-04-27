@@ -60,4 +60,26 @@ public class NNController {
 
         return response.getBody();
     }
+
+    @PostMapping (value="/classify_ecg")
+    @ResponseStatus(HttpStatus.OK)
+    public String classifyEcg (@RequestParam( "signal" ) MultipartFile signal) {
+
+        String url = "http://ia:80/classify_ecg";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("signal", signal.getResource());
+
+        Map<String, String> params = new TreeMap<>();
+
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+        RestTemplate template = new RestTemplate();
+        ResponseEntity<String> response = template.exchange(url, HttpMethod.POST, requestEntity, String.class, params);
+
+        return response.getBody();
+    }
 }

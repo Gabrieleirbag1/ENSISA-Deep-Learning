@@ -1,13 +1,14 @@
 import tensorflow as tf
 import tensorflow_hub as hub
 
-import requests
 from PIL import Image
-from io import BytesIO
 
 import numpy as np
+import json
 import os
 import shutil
+import tempfile
+import zipfile
 
 classifier = None
 image_size = 224
@@ -15,6 +16,94 @@ dynamic_size = False
 max_dynamic_size = 512
 classes = []
 is_keras_model = False
+model_kind = "image"
+model_input_rank = 4
+model_input_length = None
+
+
+def _extract_io_shape_from_keras_archive(model_path):
+  with zipfile.ZipFile(model_path, "r") as archive:
+    config = json.loads(archive.read("config.json").decode("utf-8"))
+
+  input_layers = config.get("config", {}).get("input_layers", [])
+  input_name = None
+  if input_layers and isinstance(input_layers[0], list) and len(input_layers[0]) > 0:
+    input_name = input_layers[0][0]
+
+  for layer in config.get("config", {}).get("layers", []):
+    if layer.get("class_name") != "InputLayer":
+      continue
+    if input_name is not None and layer.get("name") != input_name:
+      continue
+    layer_cfg = layer.get("config", {})
+    batch_shape = layer_cfg.get("batch_shape") or layer_cfg.get("batch_input_shape")
+    if isinstance(batch_shape, list) and len(batch_shape) >= 2:
+      rank = len(batch_shape)
+      input_length = int(batch_shape[1]) if batch_shape[1] is not None else None
+      return rank, input_length
+
+  return None, None
+
+
+def _build_ecg_fallback_model(model_name, input_length):
+  if input_length is None:
+    raise Exception("Unable to infer ECG input length from model archive")
+
+  n_classes = len(classes) if len(classes) > 0 else 2
+
+  if model_name.upper().startswith("MLP"):
+    inp = tf.keras.layers.Input(shape=(input_length,), name="ecg_input")
+    x = tf.keras.layers.Dense(128, activation="relu")(inp)
+    x = tf.keras.layers.Dropout(0.3)(x)
+    x = tf.keras.layers.Dense(64, activation="relu")(x)
+    out = tf.keras.layers.Dense(n_classes, activation="softmax")(x)
+    return tf.keras.Model(inputs=inp, outputs=out, name="MLP_ECG200")
+
+  if model_name.upper().startswith("CNN"):
+    inp = tf.keras.layers.Input(shape=(input_length, 1), name="ecg_input")
+    x = tf.keras.layers.Conv1D(filters=32, kernel_size=5, padding="same", activation="relu")(inp)
+    x = tf.keras.layers.MaxPooling1D(pool_size=2)(x)
+    x = tf.keras.layers.Conv1D(filters=64, kernel_size=5, padding="same", activation="relu")(x)
+    x = tf.keras.layers.GlobalAveragePooling1D()(x)
+    x = tf.keras.layers.Dense(64, activation="relu")(x)
+    out = tf.keras.layers.Dense(n_classes, activation="softmax")(x)
+    return tf.keras.Model(inputs=inp, outputs=out, name="CNN1D_ECG200")
+
+  if model_name.upper().startswith("RNN"):
+    inp = tf.keras.layers.Input(shape=(input_length, 1), name="ecg_input")
+    x = tf.keras.layers.LSTM(64, return_sequences=True)(inp)
+    x = tf.keras.layers.LSTM(32)(x)
+    x = tf.keras.layers.Dense(32, activation="relu")(x)
+    out = tf.keras.layers.Dense(n_classes, activation="softmax")(x)
+    return tf.keras.Model(inputs=inp, outputs=out, name="RNN_LSTM_ECG200")
+
+  raise Exception(f"Unsupported Keras archive model for fallback loading: {model_name}")
+
+
+def _try_load_keras_archive_fallback(model_path):
+  model_name = os.path.basename(model_path)
+  rank, input_length = _extract_io_shape_from_keras_archive(model_path)
+  model = _build_ecg_fallback_model(model_name, input_length)
+
+  with zipfile.ZipFile(model_path, "r") as archive:
+    # Find the actual weights file — name varies by Keras version
+    all_files = archive.namelist()
+    weights_candidates = [f for f in all_files if f.endswith(".weights.h5") or f == "model.weights.h5"]
+    if not weights_candidates:
+      # Keras 3 stores weights directly as .h5 at root level
+      weights_candidates = [f for f in all_files if f.endswith(".h5")]
+    if not weights_candidates:
+      raise Exception(f"No weights file found in archive. Contents: {all_files}")
+    weights_filename = weights_candidates[0]
+    print(f"Using weights file: {weights_filename}")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+      weights_path = os.path.join(temp_dir, os.path.basename(weights_filename))
+      with open(weights_path, "wb") as weights_file:
+        weights_file.write(archive.read(weights_filename))
+      model.load_weights(weights_path, by_name=True, skip_mismatch=True)
+
+  return model, rank, input_length
 
 model_handle_map = {
   "efficientnetv2-s": "https://tfhub.dev/google/imagenet/efficientnet_v2_imagenet1k_s/classification/2",
@@ -129,9 +218,15 @@ def config (model_name) :
     global dynamic_size
     global classes
     global is_keras_model
+    global model_kind
+    global model_input_rank
+    global model_input_length
     classifier = None
     is_keras_model = False
     classes = []
+    model_kind = "image"
+    model_input_rank = 4
+    model_input_length = None
     model_path = model_name
     if not os.path.isabs(model_path):
       model_path = os.path.abspath(os.path.join("./models", model_name))
@@ -139,21 +234,35 @@ def config (model_name) :
     if not os.path.exists(model_path):
       raise Exception("keras model not found: {}".format(model_path))
     try:
-      classifier = tf.keras.models.load_model(model_path)
+      classifier = tf.keras.models.load_model(model_path, compile=False)
       print("Model loaded successfully")
     except Exception as e:
-      print(f"Error loading model: {e}")
-      raise
+      print(f"Error loading model with tf.keras (compile=False): {e}")  # <-- you'll see the real error here
+      if model_path.endswith(".keras") and zipfile.is_zipfile(model_path):
+        classifier, fallback_rank, fallback_input_length = _try_load_keras_archive_fallback(model_path)
+        model_input_rank = fallback_rank if fallback_rank is not None else len(classifier.input_shape)
+        model_input_length = fallback_input_length
+        print("Keras archive fallback loading succeeded")
+      else:
+        raise
     is_keras_model = True
 
     # Infer expected input size from model input shape.
     input_shape = classifier.input_shape
     if isinstance(input_shape, list):
       input_shape = input_shape[0]
+    model_input_rank = len(input_shape)
+
     if len(input_shape) == 4 and input_shape[1] and input_shape[2]:
+      model_kind = "image"
       image_size = int(input_shape[1])
       dynamic_size = False
       print(f"Image size set to {image_size}")
+    elif len(input_shape) in [2, 3]:
+      model_kind = "ecg"
+      model_input_length = int(input_shape[1]) if input_shape[1] is not None else None
+      dynamic_size = True
+      print(f"ECG model detected, input length={model_input_length}")
     else:
       dynamic_size = True
       print("Dynamic size enabled")
@@ -170,8 +279,14 @@ def config (model_name) :
   def load_hub_model (model_name) :
     global classifier
     global is_keras_model
+    global model_kind
+    global model_input_rank
+    global model_input_length
     classifier = None
     is_keras_model = False
+    model_kind = "image"
+    model_input_rank = 4
+    model_input_length = None
     try :
       if classifier is None :
         model_handle = os.path.abspath("./models/"+model_name)
@@ -236,6 +351,9 @@ def config (model_name) :
         
 def classify (image_name) :
 
+  if model_kind != "image":
+    raise Exception("Current model is configured for ECG data. Use /classify_ecg endpoint.")
+
   def preprocess_image(image):
     image = np.array(image)
     # reshape into shape [batch_size, height, width, num_channels]
@@ -278,4 +396,162 @@ def classify (image_name) :
     probabilities = tf.nn.softmax(classifier(image)).numpy()
   result = build_result (probabilities)
   return result
+
+
+def _softmax_np(logits):
+  logits = np.asarray(logits, dtype=np.float32)
+  logits = logits - np.max(logits, axis=1, keepdims=True)
+  exp = np.exp(logits)
+  return exp / np.sum(exp, axis=1, keepdims=True)
+
+
+def _normalize_probabilities(raw_output):
+  arr = np.asarray(raw_output, dtype=np.float32)
+  if arr.ndim == 1:
+    arr = arr.reshape(1, -1)
+
+  if arr.shape[1] == 1:
+    col = arr[:, 0]
+    if np.any(col < 0.0) or np.any(col > 1.0):
+      col = 1.0 / (1.0 + np.exp(-col))
+    col = np.clip(col, 0.0, 1.0)
+    return np.stack([1.0 - col, col], axis=1)
+
+  sums = np.sum(arr, axis=1, keepdims=True)
+  looks_like_probs = np.all(arr >= 0.0) and np.all(arr <= 1.0) and np.all(np.abs(sums - 1.0) < 1e-3)
+  if looks_like_probs:
+    return arr
+  return _softmax_np(arr)
+
+
+def _load_matrix(path):
+  loaders = [
+    (lambda p: np.loadtxt(p, dtype=np.float32), "np.loadtxt default"),
+    (lambda p: np.loadtxt(p, delimiter=",", dtype=np.float32), "np.loadtxt comma"),
+    (lambda p: np.loadtxt(p, delimiter="\t", dtype=np.float32), "np.loadtxt tab"),
+    (lambda p: np.loadtxt(p, delimiter=" ", dtype=np.float32), "np.loadtxt space"),
+    (lambda p: np.genfromtxt(p, dtype=np.float32), "np.genfromtxt default"),
+  ]
+  for loader, _ in loaders:
+    try:
+      data = loader(path)
+      if data is None:
+        continue
+      data = np.asarray(data, dtype=np.float32)
+      if data.size == 0:
+        continue
+      if data.ndim == 1:
+        data = data.reshape(1, -1)
+      return data
+    except Exception:
+      pass
+  raise ValueError(f"Impossible to load ECG signal file: {path}")
+
+
+def _looks_like_label_column(col):
+  col = np.asarray(col, dtype=np.float32)
+  if col.ndim != 1 or col.size == 0:
+    return False
+  if np.any(~np.isfinite(col)):
+    return False
+  rounded = np.round(col)
+  if np.max(np.abs(col - rounded)) > 1e-6:
+    return False
+  unique_count = np.unique(rounded).size
+  return unique_count <= 20
+
+
+def _prepare_ecg_batch(signal):
+  global model_input_length
+  global model_input_rank
+
+  arr = np.asarray(signal, dtype=np.float32)
+  if arr.size == 0:
+    raise ValueError("Empty ECG signal")
+
+  if arr.ndim == 1:
+    arr = arr.reshape(1, -1)
+  elif arr.ndim > 2:
+    arr = arr.reshape(arr.shape[0], -1)
+
+  arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
+
+  if model_input_length is not None:
+    if arr.shape[1] == model_input_length + 1 and _looks_like_label_column(arr[:, 0]):
+      arr = arr[:, 1:]
+
+    if arr.shape[1] > model_input_length:
+      arr = arr[:, :model_input_length]
+    elif arr.shape[1] < model_input_length:
+      pad = model_input_length - arr.shape[1]
+      arr = np.pad(arr, ((0, 0), (0, pad)), mode="constant")
+
+  row_min = np.min(arr, axis=1, keepdims=True)
+  row_max = np.max(arr, axis=1, keepdims=True)
+  denom = row_max - row_min
+  denom[denom == 0.0] = 1.0
+  arr = (arr - row_min) / denom
+
+  if model_input_rank == 3:
+    arr = arr[..., np.newaxis]
+  return arr
+
+
+def _build_batch_result(probabilities):
+  global classes
+
+  probabilities = np.asarray(probabilities, dtype=np.float32)
+  if probabilities.ndim == 1:
+    probabilities = probabilities.reshape(1, -1)
+
+  class_count = probabilities.shape[1]
+  if len(classes) == 0 or len(classes) < class_count:
+    classes = [f"class_{i}" for i in range(class_count)]
+
+  top_k = min(5, class_count)
+  results = []
+  for sample_idx in range(probabilities.shape[0]):
+    top_indices = np.argsort(probabilities[sample_idx])[::-1][:top_k]
+    top_values = probabilities[sample_idx][top_indices]
+    sample_result = []
+    for rank, class_idx in enumerate(top_indices):
+      sample_result.append(
+        {
+          "class": classes[int(class_idx)],
+          "probability": float(top_values[rank]),
+        }
+      )
+    results.append(sample_result)
+  return results
+
+
+def classify_ecg_from_array(signal):
+  global classifier
+  global model_kind
+  if classifier is None:
+    raise Exception("Model is not configured. Call /config first.")
+  if model_kind != "ecg":
+    raise Exception("Current model is configured for images. Use /classify endpoint.")
+
+  batch = _prepare_ecg_batch(signal)
+  preds = classifier(batch, training=False)
+  if hasattr(preds, "numpy"):
+    preds = preds.numpy()
+  probabilities = _normalize_probabilities(preds)
+  results = _build_batch_result(probabilities)
+  return results[0] if len(results) == 1 else results
+
+
+def classify_ecg_file(file_name):
+  ext = os.path.splitext(file_name)[1].lower()
+  if ext == ".npy":
+    data = np.load(file_name)
+  else:
+    data = _load_matrix(file_name)
+
+  if isinstance(data, np.ndarray) and data.ndim == 2 and data.shape[1] == 1 and model_input_length is not None:
+    if data.shape[0] == model_input_length:
+      data = data.reshape(1, -1)
+
+  return classify_ecg_from_array(data)
 
