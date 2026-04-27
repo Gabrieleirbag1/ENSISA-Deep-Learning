@@ -7,8 +7,8 @@ Pour faire fonctionner ce projet:
 docker compose up -d --build
 ```
 
-2. Aller sur http://localhost:8081/ pour voir le résultat de la classification d'image.
+2. Aller sur http://localhost:8080/
 
-3. Run une config pour les ECG
+3. Sélectionner une config pour les ECG et faites appuyer sur "Config"
 
 4. Fournir un des fichiers .txt disponibles dans le dossier `data` pour faire la classification
