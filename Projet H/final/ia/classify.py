@@ -139,7 +139,7 @@ def config (model_name) :
     if not os.path.exists(model_path):
       raise Exception("keras model not found: {}".format(model_path))
     try:
-      classifier = tf.keras.models.load_model(model_path, compile=False)
+      classifier = tf.keras.models.load_model(model_path)
       print("Model loaded successfully")
     except Exception as e:
       print(f"Error loading model: {e}")

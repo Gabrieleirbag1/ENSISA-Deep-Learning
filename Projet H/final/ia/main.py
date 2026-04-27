@@ -24,9 +24,13 @@ def doConfiguration():
    model_name = "efficientnetv2-s"
    if 'graph' in request.args:
       model_name = request.args['graph']
-   classify.config(model_name);
-   print ("done")
-   return { "status" : "ok", "data": "condiguration is done" }
+   try:
+      classify.config(model_name);
+      print ("done")
+      return { "status" : "ok", "data": "configuration is done" }
+   except Exception as e:
+      print(f"Error in config: {e}")
+      return { "status" : "error", "data": str(e) }, 500
    
 def allowed_file(filename):
    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
