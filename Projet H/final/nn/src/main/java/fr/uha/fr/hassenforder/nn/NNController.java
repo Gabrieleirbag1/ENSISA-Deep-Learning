@@ -17,9 +17,19 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
 public class NNController {
+
+    @GetMapping(value = "/", produces = MediaType.TEXT_HTML_VALUE)
+    @ResponseStatus(HttpStatus.OK)
+    public String home() {
+        String url = "http://ia:80/";
+        RestTemplate template = new RestTemplate();
+        ResponseEntity<String> response = template.exchange(url, HttpMethod.GET, HttpEntity.EMPTY, String.class);
+        return response.getBody();
+    }
 
     @PostMapping (value="/config")
     @ResponseStatus(HttpStatus.OK)
